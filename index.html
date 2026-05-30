@@ -22,6 +22,7 @@
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
     body{background:#f7f4ef;font-family:'Nunito',sans-serif;overscroll-behavior:none;}
@@ -295,7 +296,7 @@ function sugerencias(catalogo, hist) {
 
 // ── PANTALLA ACCESO ───────────────────────────────────────────────────────────
 
-function Acceso({onEntrar}) {
+function Acceso({onEntrar,onGoogle,user}) {
   const [modo,setModo]=useState("inicio");
   const [cod,setCod]=useState("");
   const [nom,setNom]=useState("");
@@ -328,6 +329,13 @@ function Acceso({onEntrar}) {
         <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320}}>
           <button onClick={()=>setModo("crear")} style={S.btnOrange}>🏠 Crear hogar nuevo</button>
           <button onClick={()=>setModo("unirse")} style={S.btnGhost}>🔑 Unirme a un hogar</button>
+          {FIREBASE_ACTIVO&&<>
+            <div style={{display:"flex",alignItems:"center",gap:8,margin:"4px 0",color:"#ccc",fontSize:12}}><div style={{flex:1,height:1,background:"#e8e4dc"}}/>o<div style={{flex:1,height:1,background:"#e8e4dc"}}/></div>
+            <button onClick={onGoogle} style={{...S.btnGhost,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#fff",border:"1.5px solid #ece8e0"}}>
+              <span style={{fontWeight:800,color:"#4285F4"}}>G</span> Continuar con Google
+            </button>
+            <div style={{fontSize:12,color:"#aaa",textAlign:"center",lineHeight:1.5}}>Vincula tu cuenta para no perder tu hogar si pierdes el código. Si ya tienes uno, entrarás directo.</div>
+          </>}
           {!FIREBASE_ACTIVO&&<div style={{fontSize:12,color:"#f59e0b",textAlign:"center",background:"#fffbeb",borderRadius:10,padding:"10px 12px",lineHeight:1.5,marginTop:8}}>⚠️ Firebase no configurado — datos solo en este dispositivo</div>}
         </div>
       )}
@@ -397,6 +405,31 @@ function App() {
 
   // UX: al cambiar de tab, limpiar la búsqueda activa
   useEffect(()=>{ setBusq(""); },[tab]);
+
+  // ── Auth Google (solo como ancla de recuperación del hogar) ──────────────────
+  const [user,setUser] = useState(null);
+  useEffect(()=>{
+    if(!FIREBASE_ACTIVO||typeof firebase==="undefined"||!firebase.auth) return;
+    const auth=firebase.auth();
+    auth.getRedirectResult().catch(()=>{});
+    const unsub=auth.onAuthStateChanged(u=>setUser(u||null));
+    return ()=>unsub();
+  },[]);
+  // Cuando hay sesión Google: si ya estoy en un hogar lo vinculo a mi cuenta;
+  // si no tengo hogar, recupero el que esté vinculado a mi cuenta.
+  useEffect(()=>{
+    if(!FIREBASE_ACTIVO||typeof firebase==="undefined"||!user) return;
+    const ref=firebase.firestore().collection("usuarios").doc(user.uid);
+    if(hogar){ ref.set({hogar,nombre:nombre||"",email:user.email||""},{merge:true}).catch(()=>{}); }
+    else { (async()=>{ try{ const s=await ref.get(); if(s.exists&&s.data().hogar){ setHogar(s.data().hogar); setNombre(s.data().nombre||user.displayName||""); } }catch(e){} })(); }
+  },[user,hogar]);
+  const entrarGoogle = async () => {
+    if(typeof firebase==="undefined"||!firebase.auth){ toast2("Firebase no está listo","warn"); return; }
+    const provider=new firebase.auth.GoogleAuthProvider();
+    try{ await firebase.auth().signInWithPopup(provider); toast2("Cuenta vinculada ✓"); }
+    catch(e){ try{ await firebase.auth().signInWithRedirect(provider); }catch(_){ toast2("No se pudo iniciar sesión","warn"); } }
+  };
+  const salirGoogle = async () => { try{ if(firebase.auth) await firebase.auth().signOut(); }catch(e){} setUser(null); };
 
   const fbSync = async (col,data)=>{
     if(!hogar||!FIREBASE_ACTIVO) return;
@@ -643,7 +676,7 @@ function App() {
 
   // ── Acceso ─────────────────────────────────────────────────────────────────
 
-  if(!hogar) return <Acceso onEntrar={(c,n)=>{setHogar(c);setNombre(n);}}/>;
+  if(!hogar) return <Acceso onEntrar={(c,n)=>{setHogar(c);setNombre(n);}} onGoogle={entrarGoogle} user={user}/>;
 
   // ── ProdRow ────────────────────────────────────────────────────────────────
 
@@ -1041,8 +1074,13 @@ function App() {
               <div style={{fontSize:13,color:"#aaa",marginTop:12,lineHeight:1.5}}>Tu pareja abre la app, selecciona "Unirme a un hogar" y escribe este código</div>
               {!FIREBASE_ACTIVO&&<div style={{fontSize:12,color:"#f59e0b",marginTop:12,background:"#fffbeb",borderRadius:10,padding:"10px 12px",lineHeight:1.5}}>⚠️ Configura Firebase para sincronizar entre dispositivos</div>}
             </div>
+            {FIREBASE_ACTIVO&&(user
+              ? <div style={{fontSize:12,color:"#2d6a4f",textAlign:"center",background:"#f0fdf4",borderRadius:10,padding:"10px 12px",lineHeight:1.5,marginBottom:10}}>🔒 Hogar protegido con Google<br/><strong>{user.email}</strong><br/>Si pierdes el código, entra con esta cuenta y recuperas tu hogar.</div>
+              : <button onClick={entrarGoogle} style={{...S.btnGhost,marginBottom:10,background:"#fff",border:"1.5px solid #ece8e0"}}>🔒 Proteger con mi Google (recuperación)</button>
+            )}
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               <button onClick={()=>setMCodigo(false)} style={S.btnOrange}>Entendido</button>
+              {user&&<button onClick={salirGoogle} style={{...S.btnGhost,fontSize:13}}>Desvincular Google</button>}
               <button onClick={()=>{setHogar(null);setNombre(null);setMCodigo(false);}} style={{...S.btnGhost,color:"#e53e3e",fontSize:13}}>Cerrar sesión</button>
             </div>
           </div>
