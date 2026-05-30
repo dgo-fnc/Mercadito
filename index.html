@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Mercadito"/>
+  <meta name="theme-color" content="#f97316"/>
+  <meta name="description" content="Tu lista de mercado inteligente, siempre organizada."/>
+  <title>Mercadito</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+  <link rel="icon" type="image/png" href="icon-192.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    body{background:#f7f4ef;font-family:'Nunito',sans-serif;overscroll-behavior:none;}
+    input,button{font-family:'Nunito',sans-serif;}
+    ::-webkit-scrollbar{display:none;}
+    /* PWA safe areas */
+    .safe-bottom{padding-bottom:env(safe-area-inset-bottom,16px);}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = Recharts;
+
+// ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
+// Pega aquí el objeto firebaseConfig que te da la consola de Firebase.
+// (Project settings → Tus apps → SDK setup and configuration → Config)
+// Mientras diga "TU_API_KEY", la app funciona solo en este dispositivo (sin sync).
+const FIREBASE_CONFIG = {
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_PROJECT_ID.firebaseapp.com",
+  projectId: "TU_PROJECT_ID",
+  storageBucket: "TU_PROJECT_ID.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID",
+};
+const FIREBASE_ACTIVO = FIREBASE_CONFIG.apiKey !== "TU_API_KEY";
+
+// ── DATOS BASE ────────────────────────────────────────────────────────────────
+
+const CATEGORIAS = [
+  { id:"granos",        label:"Granos y secos",       emoji:"🌾" },
+  { id:"carnes",        label:"Carnes y proteínas",    emoji:"🥩" },
+  { id:"lacteos",       label:"Lácteos y huevos",      emoji:"🥛" },
+  { id:"verduras",      label:"Verduras y tubérculos", emoji:"🥦" },
+  { id:"frutas",        label:"Frutas",                emoji:"🍎" },
+  { id:"desayuno",      label:"Desayuno y panadería",  emoji:"🍞" },
+  { id:"aseo_hogar",    label:"Aseo del hogar",        emoji:"🧴" },
+  { id:"aseo_personal", label:"Aseo personal",         emoji:"🪥" },
+  { id:"condimentos",   label:"Condimentos y salsas",  emoji:"🧂" },
+  { id:"snacks",        label:"Snacks y dulces",       emoji:"🍫" },
+  { id:"congelados",    label:"Congelados",            emoji:"🧊" },
+  { id:"sin_cat",       label:"Sin categoría",         emoji:"📦" },
+];
+
+const TIENDAS_DEFAULT = [
+  { id:"olimpica",   nombre:"Olímpica" },
+  { id:"d1",         nombre:"D1" },
+  { id:"plaza",      nombre:"Plaza de mercado" },
+  { id:"alkosto",    nombre:"Alkosto" },
+  { id:"tienda",     nombre:"Tienda" },
+  { id:"sin_tienda", nombre:"Sin tienda" },
+];
+
+const CATALOGO_INICIAL = [
+  {id:1,nombre:"Arroz",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:2,nombre:"Arvejas",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:3,nombre:"Azúcar",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:4,nombre:"Frijoles",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:5,nombre:"Garbanzos",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:6,nombre:"Harina de trigo",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:7,nombre:"Lentejas",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:8,nombre:"Maizena",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:9,nombre:"Maíz pira",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:10,nombre:"Panela",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:11,nombre:"Pasta",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:12,nombre:"Ramen",categoria:"granos",tienda_sugerida:"sin_tienda"},
+  {id:13,nombre:"Atún en lata",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:14,nombre:"Camarones",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:15,nombre:"Carne de cerdo",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:16,nombre:"Carne de res",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:17,nombre:"Carne molida",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:18,nombre:"Chicharrón",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:19,nombre:"Chorizo",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:20,nombre:"Costilla de res",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:21,nombre:"Jamón",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:22,nombre:"Lomo",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:23,nombre:"Pechuga de pollo",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:24,nombre:"Salchicha",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:25,nombre:"Tocineta",categoria:"carnes",tienda_sugerida:"sin_tienda"},
+  {id:26,nombre:"Crema de leche",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:27,nombre:"Huevos",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:28,nombre:"Kumis",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:29,nombre:"Leche",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:30,nombre:"Leche condensada",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:31,nombre:"Leche en polvo",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:32,nombre:"Mantequilla",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:33,nombre:"Queso doble crema",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:34,nombre:"Queso parmesano",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:35,nombre:"Yogur",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:36,nombre:"Yogur griego",categoria:"lacteos",tienda_sugerida:"sin_tienda"},
+  {id:37,nombre:"Ahuyama",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:38,nombre:"Ajo",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:39,nombre:"Brócoli",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:40,nombre:"Cebolla cabezona",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:41,nombre:"Cebolla larga",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:42,nombre:"Cilantro",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:43,nombre:"Espinaca",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:44,nombre:"Habichuela",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:45,nombre:"Lechuga",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:46,nombre:"Limón",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:47,nombre:"Mazorca",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:48,nombre:"Papa",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:49,nombre:"Papa criolla",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:50,nombre:"Pepino",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:51,nombre:"Pimentón",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:52,nombre:"Plátano",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:53,nombre:"Remolacha",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:54,nombre:"Tomate",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:55,nombre:"Yuca",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:56,nombre:"Zanahoria",categoria:"verduras",tienda_sugerida:"sin_tienda"},
+  {id:57,nombre:"Aguacate",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:58,nombre:"Banano",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:59,nombre:"Fresas",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:60,nombre:"Mandarina",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:61,nombre:"Mango",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:62,nombre:"Manzana",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:63,nombre:"Melón",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:64,nombre:"Naranja",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:65,nombre:"Papaya",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:66,nombre:"Pera",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:67,nombre:"Piña",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:68,nombre:"Uvas",categoria:"frutas",tienda_sugerida:"sin_tienda"},
+  {id:69,nombre:"Buñuelos",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:70,nombre:"Café",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:71,nombre:"Cereal",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:72,nombre:"Chocolate",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:73,nombre:"Granola",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:74,nombre:"Jugo desayuno",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:75,nombre:"Mermelada",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:76,nombre:"Pan de bono",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:77,nombre:"Pan tajado",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:78,nombre:"Pandebono",categoria:"desayuno",tienda_sugerida:"sin_tienda"},
+  {id:79,nombre:"Blanqueador",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:80,nombre:"Bolsas basura baño",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:81,nombre:"Bolsas basura cocina",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:82,nombre:"Desengrasante",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:83,nombre:"Desinfectante",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:84,nombre:"Escoba",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:85,nombre:"Esponjilla",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:86,nombre:"Jabón de loza",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:87,nombre:"Jabón de ropa",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:88,nombre:"Limpiador de piso",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:89,nombre:"Limpiones",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:90,nombre:"Recogedor",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:91,nombre:"Suavizante",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:92,nombre:"Trapero",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:93,nombre:"Velas",categoria:"aseo_hogar",tienda_sugerida:"sin_tienda"},
+  {id:94,nombre:"Bloqueador solar",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:95,nombre:"Cepillo de dientes",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:96,nombre:"Crema de manos",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:97,nombre:"Crema dental",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:98,nombre:"Desodorante",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:99,nombre:"Jabón de cuerpo",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:100,nombre:"Jabón de manos",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:101,nombre:"Papel higiénico",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:102,nombre:"Shampoo",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:103,nombre:"Toallas húmedas",categoria:"aseo_personal",tienda_sugerida:"sin_tienda"},
+  {id:104,nombre:"Aceite de cocina",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:105,nombre:"Aceite de oliva",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:106,nombre:"Ají",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:107,nombre:"Comino",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:108,nombre:"Hogao",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:109,nombre:"Mayonesa",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:110,nombre:"Mostaza",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:111,nombre:"Pimienta",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:112,nombre:"Sal",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:113,nombre:"Salsa BBQ",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:114,nombre:"Salsa de ajo",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:115,nombre:"Salsa de tomate",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:116,nombre:"Salsa negra",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:117,nombre:"Sazón",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:118,nombre:"Vinagre",categoria:"condimentos",tienda_sugerida:"sin_tienda"},
+  {id:119,nombre:"Bocadillo",categoria:"snacks",tienda_sugerida:"sin_tienda"},
+  {id:120,nombre:"Galletas Oreo",categoria:"snacks",tienda_sugerida:"sin_tienda"},
+  {id:121,nombre:"Galletas Saltín",categoria:"snacks",tienda_sugerida:"sin_tienda"},
+  {id:122,nombre:"Gelatina",categoria:"snacks",tienda_sugerida:"sin_tienda"},
+  {id:123,nombre:"Papas para fritar",categoria:"snacks",tienda_sugerida:"sin_tienda"},
+  {id:124,nombre:"Ponqué",categoria:"snacks",tienda_sugerida:"sin_tienda"},
+  {id:125,nombre:"Empanadas congeladas",categoria:"congelados",tienda_sugerida:"sin_tienda"},
+  {id:126,nombre:"Helado",categoria:"congelados",tienda_sugerida:"sin_tienda"},
+  {id:127,nombre:"Nuggets",categoria:"congelados",tienda_sugerida:"sin_tienda"},
+  {id:128,nombre:"Papas congeladas",categoria:"congelados",tienda_sugerida:"sin_tienda"},
+  {id:129,nombre:"Pizza congelada",categoria:"congelados",tienda_sugerida:"sin_tienda"},
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+const fmt = n => n ? `$${Number(n).toLocaleString("es-CO")}` : "—";
+const getCat = id => CATEGORIAS.find(c=>c.id===id) || CATEGORIAS.at(-1);
+const daysSince = iso => iso ? Math.floor((Date.now()-new Date(iso))/86400000) : null;
+const genCodigo = () => Math.random().toString(36).slice(2,8).toUpperCase();
+
+function usePersist(key, init) {
+  const [v,setV] = useState(()=>{ try{const s=localStorage.getItem(key);return s?JSON.parse(s):init;}catch{return init;} });
+  useEffect(()=>{ try{localStorage.setItem(key,JSON.stringify(v));}catch{} },[key,v]);
+  return [v,setV];
+}
+
+// ── FIREBASE ──────────────────────────────────────────────────────────────────
+
+let _db = null;
+async function getDB() {
+  if(_db) return _db;
+  if(!FIREBASE_ACTIVO) return null;
+  try {
+    const {initializeApp,getApps,getApp} = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js");
+    const {getFirestore} = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+    const app = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
+    _db = getFirestore(app);
+    return _db;
+  } catch(e){ console.warn("Firebase:",e); return null; }
+}
+
+async function fbSet(hogar, col, data) {
+  const db = await getDB(); if(!db||!hogar) return;
+  try {
+    const {doc,setDoc} = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+    await setDoc(doc(db,"hogares",hogar,col,"data"),{valor:data,ts:Date.now()});
+  } catch(e){ console.warn(e); }
+}
+
+async function fbListen(hogar, col, cb) {
+  const db = await getDB(); if(!db||!hogar) return ()=>{};
+  try {
+    const {doc,onSnapshot} = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+    return onSnapshot(doc(db,"hogares",hogar,col,"data"), snap=>{ if(snap.exists()) cb(snap.data().valor); });
+  } catch(e){ return ()=>{}; }
+}
+
+async function fbGet(hogar, col) {
+  const db = await getDB(); if(!db||!hogar) return null;
+  try {
+    const {doc,getDoc} = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+    const snap = await getDoc(doc(db,"hogares",hogar,col,"data"));
+    return snap.exists() ? snap.data().valor : null;
+  } catch(e){ return null; }
+}
+
+// ── URGENCIA ──────────────────────────────────────────────────────────────────
+
+function urgencia(prodId, hist) {
+  const h = hist[prodId];
+  if(!h||!h.length) return "none";
+  const fechas = h.map(x=>new Date(x.fecha)).sort((a,b)=>a-b);
+  const dias = daysSince(fechas.at(-1).toISOString());
+  let ciclo = 30;
+  if(fechas.length>=2){
+    const ints=[]; for(let i=1;i<fechas.length;i++) ints.push((fechas[i]-fechas[i-1])/86400000);
+    ciclo=Math.round(ints.reduce((a,b)=>a+b,0)/ints.length);
+  }
+  const p=dias/ciclo;
+  return p>=1.2?"urgente":p>=0.85?"pronto":"ok";
+}
+
+const UDOT={urgente:"#ef4444",pronto:"#f59e0b",ok:"#22c55e",none:"#d1d5db"};
+
+function sugerencias(catalogo, hist) {
+  return catalogo.map(prod=>{
+    const h=hist[prod.id]; if(!h||!h.length) return null;
+    const fechas=h.map(x=>new Date(x.fecha)).sort((a,b)=>a-b);
+    const dias=daysSince(fechas.at(-1).toISOString());
+    let prom=null;
+    if(fechas.length>=2){const ints=[];for(let i=1;i<fechas.length;i++)ints.push((fechas[i]-fechas[i-1])/86400000);prom=Math.round(ints.reduce((a,b)=>a+b,0)/ints.length);}
+    const ciclo=prom||30; const pct=dias/ciclo;
+    const urg=pct>=1.2?"urgente":pct>=0.85?"pronto":"ok";
+    return {prod,precio:h.at(-1).precio,tienda:h.at(-1).tienda,dias,prom,urg,pct};
+  }).filter(Boolean).sort((a,b)=>{const o={urgente:0,pronto:1,ok:2};return o[a.urg]!==o[b.urg]?o[a.urg]-o[b.urg]:b.pct-a.pct;});
+}
+
+// ── PANTALLA ACCESO ───────────────────────────────────────────────────────────
+
+function Acceso({onEntrar}) {
+  const [modo,setModo]=useState("inicio");
+  const [cod,setCod]=useState("");
+  const [nom,setNom]=useState("");
+  const [err,setErr]=useState("");
+  const [carg,setCarg]=useState(false);
+
+  async function crear(){
+    if(!nom.trim()){setErr("Escribe tu nombre");return;}
+    setCarg(true);
+    const c=genCodigo();
+    if(FIREBASE_ACTIVO) await fbSet(c,"meta",{creado:new Date().toISOString()});
+    onEntrar(c,nom.trim());
+  }
+  async function unirse(){
+    const c=cod.trim().toUpperCase();
+    if(c.length<4){setErr("Código inválido");return;}
+    if(!nom.trim()){setErr("Escribe tu nombre");return;}
+    setCarg(true);
+    if(FIREBASE_ACTIVO){const m=await fbGet(c,"meta");if(!m){setErr("Código no encontrado");setCarg(false);return;}}
+    onEntrar(c,nom.trim());
+  }
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",padding:32,background:"#f7f4ef",maxWidth:480,margin:"0 auto"}}>
+      <div style={{fontSize:64,marginBottom:8}}>🛒</div>
+      <div style={{fontSize:28,fontWeight:900,color:"#f97316",marginBottom:4}}>Mercadito</div>
+      <div style={{fontSize:14,color:"#aaa",marginBottom:40}}>Tu mercado, siempre organizado</div>
+
+      {modo==="inicio"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320}}>
+          <button onClick={()=>setModo("crear")} style={S.btnOrange}>🏠 Crear hogar nuevo</button>
+          <button onClick={()=>setModo("unirse")} style={S.btnGhost}>🔑 Unirme a un hogar</button>
+          {!FIREBASE_ACTIVO&&<div style={{fontSize:12,color:"#f59e0b",textAlign:"center",background:"#fffbeb",borderRadius:10,padding:"10px 12px",lineHeight:1.5,marginTop:8}}>⚠️ Firebase no configurado — datos solo en este dispositivo</div>}
+        </div>
+      )}
+
+      {(modo==="crear"||modo==="unirse")&&(
+        <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320}}>
+          <button onClick={()=>{setModo("inicio");setErr("");}} style={{background:"none",border:"none",cursor:"pointer",color:"#f97316",fontSize:14,fontWeight:700,alignSelf:"flex-start"}}>← Volver</button>
+          <div style={{fontSize:18,fontWeight:800,color:"#1a1a1a",marginBottom:4}}>{modo==="crear"?"🏠 Crear hogar nuevo":"🔑 Unirme a un hogar"}</div>
+          {modo==="unirse"&&<><label style={S.lbl}>Código del hogar</label><input style={S.input} placeholder="Ej: ABC123" value={cod} onChange={e=>{setCod(e.target.value.toUpperCase());setErr("");}} maxLength={8}/></>}
+          <label style={S.lbl}>Tu nombre</label>
+          <input style={S.input} placeholder="Ej: Diego" value={nom} onChange={e=>{setNom(e.target.value);setErr("");}}/>
+          {err&&<div style={{fontSize:13,color:"#e53e3e",fontWeight:600}}>{err}</div>}
+          <button onClick={modo==="crear"?crear:unirse} style={{...S.btnOrange,opacity:carg?0.6:1}} disabled={carg}>{carg?"Cargando...":modo==="crear"?"Crear y entrar":"Entrar"}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── APP PRINCIPAL ─────────────────────────────────────────────────────────────
+
+function App() {
+  const [hogar,setHogar]       = usePersist("ml_hogar","");
+  const [nombre,setNombre]     = usePersist("ml_nombre","");
+  const [catalogo,setCatalogo] = usePersist("ml_cat5",CATALOGO_INICIAL);
+  const [tiendas,setTiendas]   = usePersist("ml_tiendas5",TIENDAS_DEFAULT);
+  const [listas,setListas]     = usePersist("ml_listas5",[]);
+  const [activa,setActiva]     = usePersist("ml_activa5",null);
+  const [histP,setHistP]       = usePersist("ml_precios5",{});
+  const [sync,setSync]         = useState("idle");
+
+  // UI state
+  const [tab,setTab]           = useState("home");
+  const [sub,setSub]           = useState(null);
+  const [orden,setOrden]       = useState("az");
+  const [busq,setBusq]         = useState("");
+  const [catF,setCatF]         = useState("todas");
+  const [colF,setColF]         = useState("todos");
+  const [toast,setToast]       = useState(null);
+
+  // Modales
+  const [mAgregar,setMAgregar]       = useState(null);
+  const [mCompra,setMCompra]         = useState(null);
+  const [mEditProd,setMEditProd]     = useState(null);
+  const [mNuevoProd,setMNuevoProd]   = useState(false);
+  const [mNuevaTienda,setMNuevaTienda] = useState(false);
+  const [mPrecios,setMPrecios]       = useState(null);
+  const [mSugerida,setMSugerida]     = useState(false);
+  const [mFin,setMFin]               = useState(false);
+  const [mCodigo,setMCodigo]         = useState(false);
+
+  const toast2 = (msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),2500); };
+
+  // Firebase listeners
+  useEffect(()=>{
+    if(!hogar||!FIREBASE_ACTIVO) return;
+    let uns=[];
+    (async()=>{
+      uns.push(await fbListen(hogar,"listas",v=>setListas(v)));
+      uns.push(await fbListen(hogar,"activa",v=>setActiva(v)));
+      uns.push(await fbListen(hogar,"histP",v=>setHistP(v)));
+      uns.push(await fbListen(hogar,"catalogo",v=>setCatalogo(v)));
+      uns.push(await fbListen(hogar,"tiendas",v=>setTiendas(v)));
+    })();
+    return ()=>uns.forEach(u=>typeof u==="function"&&u());
+  },[hogar]);
+
+  // UX: al cambiar de tab, limpiar la búsqueda activa
+  useEffect(()=>{ setBusq(""); },[tab]);
+
+  const fbSync = async (col,data)=>{
+    if(!hogar||!FIREBASE_ACTIVO) return;
+    setSync("syncing");
+    try{ await fbSet(hogar,col,data); setSync("ok"); setTimeout(()=>setSync("idle"),2000); }
+    catch{ setSync("error"); }
+  };
+
+  // Computed
+  const items      = activa?.items||[];
+  const pend       = items.filter(i=>!i.comprado);
+  const comp       = items.filter(i=>i.comprado);
+  const totalEst   = items.reduce((a,i)=>a+((i.precio_real||i.precio_estimado||0)*(i.cantidad||1)),0);
+  const totalReal  = comp.reduce((a,i)=>a+((i.precio_real||0)*(i.cantidad||1)),0);
+  const completadas= listas.filter(l=>l.fecha_completada);
+  const sugs       = sugerencias(catalogo,histP);
+  const getTienda  = id=>tiendas.find(t=>t.id===id)||{nombre:"Sin tienda"};
+
+  // ── Lista ──────────────────────────────────────────────────────────────────
+
+  const syncLista = upd => {
+    setActiva(upd);
+    setListas(prev=>{ const n=prev.map(l=>l.id===upd.id?upd:l); fbSync("listas",n); return n; });
+    fbSync("activa",upd);
+  };
+
+  const crearLista = (base=[]) => {
+    const n={id:Date.now(),fecha_creacion:new Date().toISOString(),fecha_completada:null,items:base};
+    const nl=[n,...listas]; setActiva(n); setListas(nl);
+    fbSync("activa",n); fbSync("listas",nl); setTab("lista");
+  };
+
+  const crearSugerida = () => {
+    crearLista(sugs.filter(s=>s.urg!=="ok"||s.pct>0.6).map(s=>({
+      id:Date.now()+Math.random(),producto_id:s.prod.id,nombre:s.prod.nombre,categoria:s.prod.categoria,
+      tienda_sugerida:s.tienda||s.prod.tienda_sugerida,tienda_real:null,
+      precio_estimado:s.precio,precio_real:null,cantidad:1,comprado:false,
+    })));
+    setMSugerida(false);
+  };
+
+  const agregarItem = (prod,tienda,cant) => {
+    if(items.find(i=>i.producto_id===prod.id)){toast2(`${prod.nombre} ya está`,"warn");return;}
+    const item={id:Date.now(),producto_id:prod.id,nombre:prod.nombre,categoria:prod.categoria,
+      tienda_sugerida:tienda||"sin_tienda",tienda_real:null,
+      precio_estimado:histP[prod.id]?.at(-1)?.precio||null,precio_real:null,cantidad:cant||1,comprado:false};
+    syncLista({...activa,items:[...items,item]});
+    toast2(`${prod.nombre} agregado ✓`); setMAgregar(null);
+  };
+
+  const marcar = (item,precio,tienda,cant) => {
+    syncLista({...activa,items:items.map(i=>i.id===item.id?{...i,comprado:true,precio_real:Number(precio)||i.precio_estimado,tienda_real:tienda||i.tienda_sugerida,cantidad:Number(cant)||1,comprado_por:nombre,comprado_fecha:new Date().toISOString()}:i)});
+    if(precio){
+      const h={...histP,[item.producto_id]:[...(histP[item.producto_id]||[]),{precio:Number(precio),tienda,fecha:new Date().toISOString()}]};
+      setHistP(h); fbSync("histP",h);
+    }
+    toast2(`${item.nombre} ✓`); setMCompra(null);
+  };
+
+  const desmarcar = item => syncLista({...activa,items:items.map(i=>i.id===item.id?{...i,comprado:false,precio_real:null,tienda_real:null}:i)});
+  const quitarItem = id => syncLista({...activa,items:items.filter(i=>i.id!==id)});
+
+  const finalizar = () => pend.length>0?setMFin(true):finLimpio();
+
+  const finLimpio = () => {
+    const u={...activa,fecha_completada:new Date().toISOString()};
+    const nl=listas.map(l=>l.id===u.id?u:l);
+    setActiva(u); setListas(nl); fbSync("activa",u); fbSync("listas",nl);
+    setMFin(false); toast2("¡Mercado completado! 🎉"); setTab("home");
+  };
+
+  const finGuardar = () => {
+    const c={...activa,fecha_completada:new Date().toISOString()};
+    const n={id:Date.now(),fecha_creacion:new Date().toISOString(),fecha_completada:null,
+      items:pend.map(i=>({...i,id:Date.now()+Math.random(),comprado:false,precio_real:null,tienda_real:null}))};
+    const nl=[n,...listas.map(l=>l.id===c.id?c:l)];
+    setActiva(n); setListas(nl); fbSync("activa",n); fbSync("listas",nl);
+    setMFin(false); toast2(`Guardado · ${pend.length} pendientes en nueva lista`); setTab("home");
+  };
+
+  // ── Catálogo ───────────────────────────────────────────────────────────────
+
+  const guardarProd = prod => {
+    let n;
+    if(prod.id&&catalogo.find(p=>p.id===prod.id)){n=catalogo.map(p=>p.id===prod.id?prod:p);toast2("Actualizado");}
+    else{n=[...catalogo,{...prod,id:Date.now()}];toast2(`${prod.nombre} agregado`);}
+    setCatalogo(n); fbSync("catalogo",n); setMEditProd(null); setMNuevoProd(false);
+  };
+
+  const eliminarProd = id => {
+    const n=catalogo.filter(p=>p.id!==id); setCatalogo(n); fbSync("catalogo",n);
+    toast2("Eliminado"); setMEditProd(null);
+  };
+
+  const agregarTienda = nom => {
+    const n=[...tiendas,{id:nom.toLowerCase().replace(/\s+/g,"-")+Date.now(),nombre:nom.trim()}];
+    setTiendas(n); fbSync("tiendas",n); toast2(`${nom} agregada`); setMNuevaTienda(false);
+  };
+
+  // ── Datos de prueba ────────────────────────────────────────────────────────
+
+  const cargarPrueba = () => {
+    const prods=[{id:1,n:"Arroz"},{id:11,n:"Pasta"},{id:27,n:"Huevos"},{id:29,n:"Leche"},{id:32,n:"Mantequilla"},{id:70,n:"Café"},{id:48,n:"Papa"},{id:54,n:"Tomate"},{id:40,n:"Cebolla cabezona"},{id:38,n:"Ajo"},{id:104,n:"Aceite de cocina"},{id:112,n:"Sal"},{id:23,n:"Pechuga de pollo"},{id:16,n:"Carne de res"},{id:101,n:"Papel higiénico"},{id:87,n:"Jabón de ropa"},{id:86,n:"Jabón de loza"},{id:77,n:"Pan tajado"},{id:35,n:"Yogur"},{id:33,n:"Queso doble crema"},{id:3,n:"Azúcar"},{id:72,n:"Chocolate"},{id:57,n:"Aguacate"},{id:58,n:"Banano"},{id:64,n:"Naranja"},{id:109,n:"Mayonesa"},{id:115,n:"Salsa de tomate"},{id:98,n:"Desodorante"},{id:102,n:"Shampoo"}];
+    const tids=["olimpica","d1","plaza","alkosto","tienda"];
+    const r=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+    const pb={1:3800,11:2900,27:11000,29:3200,32:8500,70:18000,48:2500,54:1800,40:1200,38:800,104:9500,112:1500,23:14000,16:22000,101:8000,87:6500,86:4200,77:5500,35:4800,33:7200,3:2800,72:9500,57:3200,58:1500,64:1800,109:5200,115:3800,98:8500,102:22000};
+    const offs=[175,148,120,95,72,45,22,7];
+    const nL=[]; const nH={};
+    offs.forEach((off,mi)=>{
+      const f=new Date(Date.now()-off*86400000);
+      const sel=[...prods].sort(()=>Math.random()-0.5).slice(0,r(12,20));
+      const its=sel.map(p=>{
+        const precio=Math.round(((pb[p.id]||5000)*(1+(mi*0.02)+(Math.random()*0.3-0.15)))/100)*100;
+        const tienda=tids[r(0,4)];
+        if(!nH[p.id])nH[p.id]=[];
+        nH[p.id].push({precio,tienda,fecha:f.toISOString()});
+        return {id:Date.now()+mi*1000+p.id,producto_id:p.id,nombre:p.n,categoria:catalogo.find(c=>c.id===p.id)?.categoria||"sin_cat",tienda_sugerida:tienda,tienda_real:tienda,precio_estimado:precio,precio_real:precio,cantidad:r(1,3),comprado:true};
+      });
+      nL.push({id:Date.now()+mi,fecha_creacion:f.toISOString(),fecha_completada:f.toISOString(),items:its,es_prueba:true});
+    });
+    const tL=[...nL,...listas]; const tH={...histP};
+    Object.entries(nH).forEach(([id,e])=>{ tH[id]=[...(histP[id]||[]),...e].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)); });
+    setListas(tL); setHistP(tH); fbSync("listas",tL); fbSync("histP",tH);
+    toast2("8 mercados de prueba cargados ✓");
+  };
+
+  const borrarPrueba = () => {
+    const r=listas.filter(l=>!l.es_prueba); const h={};
+    r.forEach(l=>l.items.filter(i=>i.comprado&&i.precio_real).forEach(i=>{
+      if(!h[i.producto_id])h[i.producto_id]=[];
+      h[i.producto_id].push({precio:i.precio_real,tienda:i.tienda_real,fecha:l.fecha_completada});
+    }));
+    setListas(r); setHistP(h); fbSync("listas",r); fbSync("histP",h);
+    if(activa?.es_prueba){setActiva(null);fbSync("activa",null);}
+    toast2("Datos de prueba eliminados");
+  };
+
+  const hayPrueba = listas.some(l=>l.es_prueba);
+
+  // ── Exportar resumen ─────────────────────────────────────────────────────────
+
+  const resumenTexto = (lista) => {
+    const comprados = lista.items.filter(i=>i.comprado);
+    const tot = comprados.reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0);
+    const fecha = new Date(lista.fecha_completada||lista.fecha_creacion).toLocaleDateString("es-CO",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+    const porT = tiendas.map(t=>({nombre:t.nombre,total:comprados.filter(i=>i.tienda_real===t.id).reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0)})).filter(t=>t.total>0).sort((a,b)=>b.total-a.total);
+    let s = `🛒 Mercadito — ${fecha}\n${comprados.length} productos · Total ${fmt(tot)}\n`;
+    if(porT.length>1){ s += `\nPor tienda:\n`; porT.forEach(t=>{ s+=`• ${t.nombre}: ${fmt(t.total)}\n`; }); }
+    s += `\nDetalle:\n`;
+    [...comprados].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es")).forEach(i=>{
+      const sub=(i.precio_real||0)*(i.cantidad||1);
+      s += `• ${i.nombre}${i.cantidad>1?` x${i.cantidad}`:""} — ${fmt(sub)}\n`;
+    });
+    s += `\nHecho con Mercadito 🧡`;
+    return s;
+  };
+
+  const compartirTexto = async (lista) => {
+    const texto = resumenTexto(lista);
+    try { if(navigator.share){ await navigator.share({title:"Resumen de mercado",text:texto}); return; } }
+    catch(e){ if(e && e.name==="AbortError") return; }
+    try { await navigator.clipboard.writeText(texto); toast2("Resumen copiado ✓"); }
+    catch { toast2("No se pudo compartir","warn"); }
+  };
+
+  const compartirImagen = async (lista) => {
+    const comprados = [...lista.items.filter(i=>i.comprado)].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+    const tot = comprados.reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0);
+    const porT = tiendas.map(t=>({nombre:t.nombre,total:comprados.filter(i=>i.tienda_real===t.id).reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0)})).filter(t=>t.total>0).sort((a,b)=>b.total-a.total);
+    const fecha = new Date(lista.fecha_completada||lista.fecha_creacion).toLocaleDateString("es-CO",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+
+    const W=440, P=28, rowH=30, scale=Math.min(3,(window.devicePixelRatio||1)*1.5);
+    const headerH=132;
+    const tiendaBlock = porT.length>1 ? (34 + porT.length*24 + 14) : 0;
+    const H = headerH + tiendaBlock + 34 + comprados.length*rowH + 64;
+
+    const cv=document.createElement("canvas");
+    cv.width=W*scale; cv.height=H*scale;
+    const ctx=cv.getContext("2d");
+    ctx.scale(scale,scale);
+    const rr=(x,y,w,h,r)=>{ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();};
+    const FF="'Nunito',sans-serif";
+
+    ctx.fillStyle="#f7f4ef"; ctx.fillRect(0,0,W,H);
+    const g=ctx.createLinearGradient(0,0,0,headerH); g.addColorStop(0,"#f97316"); g.addColorStop(1,"#fb923c");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,headerH);
+    ctx.fillStyle="#fff"; ctx.textBaseline="alphabetic";
+    ctx.font=`900 30px ${FF}`; ctx.fillText("🛒 Mercadito",P,52);
+    ctx.font=`600 15px ${FF}`; ctx.fillStyle="rgba(255,255,255,0.92)";
+    ctx.fillText(fecha.charAt(0).toUpperCase()+fecha.slice(1),P,80);
+    ctx.font=`800 13px ${FF}`; ctx.fillStyle="rgba(255,255,255,0.92)";
+    ctx.fillText(`${comprados.length} productos`,P,106);
+    ctx.textAlign="right"; ctx.font=`900 30px ${FF}`; ctx.fillStyle="#fff"; ctx.fillText(fmt(tot),W-P,68);
+    ctx.font=`700 12px ${FF}`; ctx.fillStyle="rgba(255,255,255,0.85)"; ctx.fillText("TOTAL",W-P,90);
+    ctx.textAlign="left";
+
+    let y=headerH+34;
+    if(porT.length>1){
+      ctx.fillStyle="#bbb"; ctx.font=`800 11px ${FF}`; ctx.fillText("POR TIENDA",P,y); y+=22;
+      porT.forEach(t=>{
+        ctx.fillStyle="#555"; ctx.font=`600 14px ${FF}`; ctx.fillText(t.nombre,P,y);
+        ctx.textAlign="right"; ctx.fillStyle="#f97316"; ctx.font=`800 14px ${FF}`; ctx.fillText(fmt(t.total),W-P,y);
+        ctx.textAlign="left"; y+=24;
+      });
+      y+=14;
+    }
+    ctx.fillStyle="#bbb"; ctx.font=`800 11px ${FF}`; ctx.fillText("DETALLE",P,y); y+=24;
+    comprados.forEach(i=>{
+      const sub=(i.precio_real||0)*(i.cantidad||1);
+      const nom=i.cantidad>1?`${i.nombre}  x${i.cantidad}`:i.nombre;
+      ctx.fillStyle="#1a1a1a"; ctx.font=`600 14px ${FF}`;
+      ctx.fillText(nom.length>30?nom.slice(0,29)+"…":nom,P,y);
+      ctx.textAlign="right"; ctx.fillStyle="#f97316"; ctx.font=`700 14px ${FF}`; ctx.fillText(fmt(sub),W-P,y);
+      ctx.textAlign="left";
+      ctx.strokeStyle="#ece8e0"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(P,y+9); ctx.lineTo(W-P,y+9); ctx.stroke();
+      y+=rowH;
+    });
+    ctx.fillStyle="#bbb"; ctx.font=`700 12px ${FF}`; ctx.textAlign="center";
+    ctx.fillText("Hecho con Mercadito 🧡",W/2,H-22); ctx.textAlign="left";
+
+    cv.toBlob(async (blob)=>{
+      if(!blob){ toast2("No se pudo generar la imagen","warn"); return; }
+      const file=new File([blob],`mercadito-${Date.now()}.png`,{type:"image/png"});
+      try {
+        if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:"Resumen de mercado"}); return; }
+      } catch(e){ if(e && e.name==="AbortError") return; }
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a"); a.href=url; a.download=file.name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      toast2("Imagen descargada ✓");
+    },"image/png");
+  };
+
+  // ── Filtros ────────────────────────────────────────────────────────────────
+
+  const catFilt = catalogo
+    .filter(p=>catF==="todas"||p.categoria===catF)
+    .filter(p=>p.nombre.toLowerCase().includes(busq.toLowerCase()))
+    .filter(p=>colF==="todos"||urgencia(p.id,histP)===colF);
+
+  const catAZ = [...catFilt].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  const catCat = (()=>{ const g={}; CATEGORIAS.forEach(c=>g[c.id]=[]); catFilt.forEach(p=>(g[p.categoria]=g[p.categoria]||[]).push(p)); Object.keys(g).forEach(k=>g[k].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"))); return g; })();
+  const pendPorTienda = tiendas.map(t=>({...t,items:pend.filter(i=>(i.tienda_sugerida||"sin_tienda")===t.id).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"))})).filter(t=>t.items.length>0);
+
+  // ── Acceso ─────────────────────────────────────────────────────────────────
+
+  if(!hogar) return <Acceso onEntrar={(c,n)=>{setHogar(c);setNombre(n);}}/>;
+
+  // ── ProdRow ────────────────────────────────────────────────────────────────
+
+  const ProdRow = ({p,enLista}) => {
+    const prec=histP[p.id]?.at(-1)?.precio;
+    const urg=urgencia(p.id,histP);
+    return (
+      <button onClick={()=>enLista?toast2(`${p.nombre} ya está`,"warn"):setMAgregar(p)} style={{...S.prodRow,...(enLista?S.prodRowOn:{})}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flex:1}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:UDOT[urg],flexShrink:0,display:"inline-block"}}/>
+          <span style={S.prodNom}>{p.nombre}</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {prec&&<span style={S.prodPrecio}>{fmt(prec)}</span>}
+          {enLista?<span style={S.checkMark}>✓</span>:<span style={S.addMark}>+</span>}
+        </div>
+      </button>
+    );
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div style={S.app}>
+      {toast&&<div style={{...S.toast,background:toast.type==="warn"?"#e07b00":"#2d6a4f"}}>{toast.msg}</div>}
+
+      <header style={S.header}>
+        <div style={S.headerTop}>
+          <button onClick={()=>setTab("home")} style={{background:"none",border:"none",cursor:"pointer",padding:0}}>
+            <span style={{fontSize:20,fontWeight:900,color:"#f97316",letterSpacing:"-0.5px"}}>Mercadito</span>
+          </button>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            {FIREBASE_ACTIVO&&<span style={{fontSize:11,color:sync==="ok"?"#2d6a4f":sync==="syncing"?"#f59e0b":sync==="error"?"#e53e3e":"transparent"}}>{sync==="syncing"?"↑":sync==="ok"?"✓":"⚠"}</span>}
+            {activa&&!activa.fecha_completada&&<div style={S.totalChip}>{fmt(totalEst)}</div>}
+            <button onClick={()=>setMCodigo(true)} style={{background:"none",border:"1px solid #ece8e0",borderRadius:20,padding:"3px 9px",fontSize:11,fontWeight:700,color:"#999",cursor:"pointer"}}>🏠 {hogar}</button>
+          </div>
+        </div>
+        <nav style={S.nav}>
+          {[{id:"home",l:"Inicio",i:"🏠"},{id:"lista",l:"Lista",i:"📋"},{id:"mercado",l:"Mercado",i:"🛍️"},{id:"catalogo",l:"Catálogo",i:"📦"},{id:"historial",l:"Historial",i:"📊"}].map(v=>(
+            <button key={v.id} onClick={()=>{setTab(v.id);setSub(null);}} style={{...S.navBtn,...(tab===v.id?S.navOn:{})}}>
+              <span style={{fontSize:20}}>{v.i}</span>
+              <span style={{fontSize:10,fontWeight:700}}>{v.l}</span>
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main style={{padding:"14px 14px 100px"}}>
+
+        {/* HOME */}
+        {tab==="home"&&(
+          <div style={S.page}>
+            <div style={{background:"linear-gradient(135deg,#f97316,#fb923c)",borderRadius:20,padding:"20px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 6px 20px rgba(249,115,22,0.22)"}}>
+              <div><div style={{fontSize:24,fontWeight:900,color:"#fff"}}>Hola, {nombre} 👋</div><div style={{fontSize:13,color:"rgba(255,255,255,0.85)",marginTop:2}}>¿Qué necesitas hoy?</div></div>
+              <span style={{fontSize:48}}>🛒</span>
+            </div>
+
+            {activa&&!activa.fecha_completada?(
+              <div style={S.card}>
+                <div style={S.cardRow}><span style={S.cardTitle}>Lista activa</span><span style={S.badge}>{pend.length} pendientes</span></div>
+                <div style={S.statsRow}>
+                  {[{n:items.length,l:"productos"},{n:comp.length,l:"comprados"},{n:fmt(totalEst),l:"estimado",a:true}].map((s,i)=>(
+                    <div key={i} style={S.statBox}><span style={{...S.statN,...(s.a?{color:"#f97316"}:{})}}>{s.n}</span><span style={S.statL}>{s.l}</span></div>
+                  ))}
+                </div>
+                <div style={S.btnRow}>
+                  <button onClick={()=>setTab("lista")} style={S.btnGhost}>Ver lista</button>
+                  <button onClick={()=>setTab("mercado")} style={S.btnOrange}>{comp.length>0?"Continuar 🛍️":"Ir de mercado 🛍️"}</button>
+                </div>
+              </div>
+            ):(
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <button onClick={()=>crearLista()} style={S.btnCrear}><span style={{fontSize:28}}>✏️</span><span style={{fontSize:16,fontWeight:700}}>Nueva lista desde cero</span></button>
+                {sugs.filter(s=>s.urg!=="ok").length>0&&(
+                  <button onClick={()=>setMSugerida(true)} style={{...S.btnCrear,borderColor:"#2d6a4f",color:"#2d6a4f"}}>
+                    <span style={{fontSize:28}}>🤖</span>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <span style={{fontSize:16,fontWeight:700}}>Lista sugerida</span>
+                      <span style={{fontSize:12,opacity:0.7}}>{sugs.filter(s=>s.urg!=="ok").length} productos que podrían hacer falta</span>
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!hayPrueba?<button onClick={cargarPrueba} style={{...S.btnGhost,fontSize:13,padding:"10px",color:"#aaa",border:"1px dashed #ddd"}}>🧪 Cargar datos de prueba</button>
+              :<button onClick={borrarPrueba} style={{...S.btnGhost,fontSize:13,padding:"10px",color:"#e53e3e",border:"1px dashed #fca5a5"}}>🗑️ Borrar datos de prueba</button>}
+
+            {sugs.filter(s=>s.urg==="urgente").length>0&&(
+              <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:14,padding:"11px 13px"}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#92400e",marginBottom:6}}>⚠️ Podrían estar agotándose</div>
+                {sugs.filter(s=>s.urg==="urgente").slice(0,4).map(s=>(
+                  <div key={s.prod.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #fef3c7"}}>
+                    <span style={{color:"#333"}}>{s.prod.nombre}</span>
+                    <span style={{fontSize:12,color:"#e07b00",fontWeight:600}}>hace {s.dias}d{s.prom?` (~${s.prom}d)`:""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {completadas.length>0&&(()=>{
+              const u=completadas[0];
+              const tot=u.items.filter(i=>i.comprado).reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0);
+              return(
+                <div style={S.card}>
+                  <div style={S.cardRow}><span style={S.cardTitle}>Último mercado</span><span style={S.badgeOrange}>{fmt(tot)}</span></div>
+                  <div style={{fontSize:13,color:"#999"}}>{new Date(u.fecha_completada).toLocaleDateString("es-CO",{weekday:"long",day:"2-digit",month:"long"})} · {u.items.filter(i=>i.comprado).length} productos</div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* LISTA */}
+        {tab==="lista"&&(
+          <div style={S.page}>
+            <div style={S.pageHead}><span style={S.pageTitle}>Armar lista</span>{activa&&<span style={S.badge}>{items.length} · {fmt(totalEst)}</span>}</div>
+            {!activa?(<div style={S.empty}><p>No hay lista activa</p><button onClick={()=>crearLista()} style={S.btnOrange}>Crear lista</button></div>):(
+              <>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <div style={{flex:1,display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid #ece8e0",borderRadius:12,padding:"9px 12px"}}>
+                    <span style={{fontSize:15,opacity:0.4}}>🔍</span>
+                    <input style={{flex:1,border:"none",outline:"none",fontSize:15,background:"transparent",fontFamily:"Nunito,sans-serif"}} placeholder="Buscar producto..." value={busq} onChange={e=>setBusq(e.target.value)}/>
+                    {busq&&<button onClick={()=>setBusq("")} style={{background:"none",border:"none",cursor:"pointer",color:"#bbb",fontSize:14}}>✕</button>}
+                  </div>
+                  <button onClick={()=>setOrden(o=>o==="az"?"cat":"az")} style={{background:"#fff",border:"1.5px solid #ece8e0",borderRadius:12,padding:"9px 13px",fontSize:14,fontWeight:700,cursor:"pointer",color:"#f97316"}}>{orden==="az"?"A→Z":"📂"}</button>
+                </div>
+
+                {orden==="cat"&&(
+                  <div style={S.chipScroll}>{[{id:"todas",label:"Todas",emoji:"✨"},...CATEGORIAS].map(c=>(
+                    <button key={c.id} onClick={()=>setCatF(c.id)} style={{...S.chip,...(catF===c.id?S.chipOn:{})}}>{c.emoji} {c.label||"Todas"}</button>
+                  ))}</div>
+                )}
+
+                <div style={S.chipScroll}>
+                  {[{id:"todos",l:"Todos"},{id:"urgente",l:"🔴 Urgente"},{id:"pronto",l:"🟡 Pronto"},{id:"ok",l:"🟢 Ok"},{id:"none",l:"⚪ Nuevo"}].map(f=>(
+                    <button key={f.id} onClick={()=>setColF(f.id)} style={{...S.chip,...(colF===f.id?S.chipOn:{})}}>{f.l}</button>
+                  ))}
+                </div>
+
+                {orden==="az"&&<div style={S.prodList}>{catAZ.map(p=><ProdRow key={p.id} p={p} enLista={items.find(i=>i.producto_id===p.id)}/>)}</div>}
+
+                {orden==="cat"&&<div>{CATEGORIAS.filter(c=>catF==="todas"||c.id===catF).map(cat=>{
+                  const ps=catCat[cat.id]||[]; if(!ps.length) return null;
+                  return(<div key={cat.id} style={{marginBottom:4}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#888",padding:"8px 2px 3px",borderBottom:"1px solid #ece8e0",marginBottom:2}}>{cat.emoji} {cat.label}</div>
+                    <div style={S.prodList}>{ps.map(p=><ProdRow key={p.id} p={p} enLista={items.find(i=>i.producto_id===p.id)}/>)}</div>
+                  </div>);
+                })}</div>}
+
+                <button onClick={()=>setMNuevoProd(true)} style={{background:"none",border:"1.5px dashed #ddd",borderRadius:12,padding:"11px",fontSize:14,color:"#aaa",cursor:"pointer",width:"100%",marginTop:2}}>+ Agregar nuevo producto al catálogo</button>
+
+                {items.length>0&&(
+                  <div style={{marginTop:8}}>
+                    <div style={{fontSize:12,fontWeight:800,color:"#bbb",textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>En tu lista ({items.length})</div>
+                    {items.map(item=>(
+                      <div key={item.id} style={{...S.itemRow,opacity:item.comprado?0.45:1}}>
+                        <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+                          <span style={S.itemNom}>{item.nombre}</span>
+                          <span style={S.itemMeta}>{getTienda(item.tienda_sugerida).nombre}{item.cantidad>1?` · x${item.cantidad}`:""}{item.precio_estimado?` · ${fmt(item.precio_estimado)}`:""}</span>
+                        </div>
+                        <button onClick={()=>quitarItem(item.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",fontSize:16,padding:4}}>✕</button>
+                      </div>
+                    ))}
+                    <button onClick={()=>setTab("mercado")} style={{...S.btnOrange,width:"100%",marginTop:10}}>¡Listo! Ir de mercado 🛍️</button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* MERCADO */}
+        {tab==="mercado"&&(
+          <div style={S.page}>
+            <div style={S.pageHead}>
+              <span style={S.pageTitle}>Haciendo mercado</span>
+              <div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#999",fontWeight:600}}>Total</div><div style={{fontSize:20,fontWeight:800,color:"#f97316"}}>{fmt(totalReal||totalEst)}</div></div>
+            </div>
+            {!activa||items.length===0?(<div style={S.empty}><p>Primero arma tu lista</p><button onClick={()=>setTab("lista")} style={S.btnOrange}>Ir a lista</button></div>):(
+              <>
+                <div style={{background:"#fff",borderRadius:14,padding:"11px 13px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)"}}>
+                  <div style={{background:"#f0ede8",borderRadius:6,height:7,overflow:"hidden",marginBottom:5}}><div style={{background:"linear-gradient(90deg,#f97316,#fb923c)",height:"100%",borderRadius:6,width:`${(comp.length/items.length)*100}%`,transition:"width 0.4s"}}/></div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:13,color:"#888",fontWeight:600}}>{comp.length} de {items.length} listos</span>
+                    <button onClick={finalizar} style={{background:"none",border:"1px solid #f97316",borderRadius:10,padding:"4px 12px",fontSize:12,fontWeight:700,color:"#f97316",cursor:"pointer"}}>Finalizar</button>
+                  </div>
+                </div>
+
+                {pendPorTienda.map(t=>(
+                  <div key={t.id} style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,0.05)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff8f3",padding:"9px 13px",borderBottom:"1px solid #f0ede8"}}>
+                      <span style={{fontSize:14,fontWeight:700}}>🏪 {t.nombre}</span>
+                      <span style={{background:"#f97316",color:"#fff",width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{t.items.length}</span>
+                    </div>
+                    {t.items.map(item=>(
+                      <button key={item.id} onClick={()=>setMCompra(item)} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 13px",width:"100%",background:"none",border:"none",cursor:"pointer",borderBottom:"1px solid #f7f4ef",textAlign:"left"}}>
+                        <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+                          <span style={S.itemNom}>{item.nombre}</span>
+                          <span style={S.itemMeta}>{item.precio_estimado?`Est. ${fmt(item.precio_estimado)}`:"Sin precio previo"}{item.cantidad>1?` · x${item.cantidad}`:""}</span>
+                        </div>
+                        <span style={{fontSize:22,color:"#ddd"}}>›</span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+
+                {comp.length>0&&(
+                  <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,0.05)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f0fdf4",padding:"9px 13px",borderBottom:"1px solid #f0ede8"}}>
+                      <span style={{fontSize:14,fontWeight:700}}>✅ Comprado</span>
+                      <span style={{background:"#2d6a4f",color:"#fff",width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{comp.length}</span>
+                    </div>
+                    {comp.map(item=>(
+                      <div key={item.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 13px",borderBottom:"1px solid #f7f4ef",opacity:0.55,background:"#fafafa"}}>
+                        <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+                          <span style={{...S.itemNom,textDecoration:"line-through"}}>{item.nombre}</span>
+                          <span style={S.itemMeta}>{fmt(item.precio_real)} · x{item.cantidad} · {getTienda(item.tienda_real).nombre}{item.comprado_por?` · 🛒 ${item.comprado_por}`:""}</span>
+                        </div>
+                        <button onClick={()=>desmarcar(item)} style={{background:"none",border:"none",cursor:"pointer",color:"#f97316",fontSize:18,padding:4}}>↩</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {pend.length===0&&(
+                  <div style={{background:"#fff",borderRadius:20,padding:24,display:"flex",flexDirection:"column",alignItems:"center",gap:10,boxShadow:"0 4px 16px rgba(0,0,0,0.07)"}}>
+                    <div style={{fontSize:52}}>🎉</div>
+                    <div style={{fontSize:20,fontWeight:800}}>¡Todo comprado!</div>
+                    <div style={{fontSize:16,color:"#666"}}>Total: <strong>{fmt(totalReal)}</strong></div>
+                    <button onClick={finalizar} style={S.btnOrange}>Finalizar y guardar</button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* CATÁLOGO */}
+        {tab==="catalogo"&&!sub&&(
+          <div style={S.page}>
+            <div style={S.pageHead}><span style={S.pageTitle}>Catálogo</span><button onClick={()=>setMNuevoProd(true)} style={{background:"#f97316",color:"#fff",border:"none",borderRadius:10,padding:"7px 13px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Producto</button></div>
+            <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid #ece8e0",borderRadius:12,padding:"9px 12px"}}>
+              <span style={{fontSize:15,opacity:0.4}}>🔍</span>
+              <input style={{flex:1,border:"none",outline:"none",fontSize:15,background:"transparent",fontFamily:"Nunito,sans-serif"}} placeholder="Buscar..." value={busq} onChange={e=>setBusq(e.target.value)}/>
+              {busq&&<button onClick={()=>setBusq("")} style={{background:"none",border:"none",cursor:"pointer",color:"#bbb",fontSize:14}}>✕</button>}
+            </div>
+            <div style={S.chipScroll}>{[{id:"todas",label:"Todas",emoji:"✨"},...CATEGORIAS].map(c=>(
+              <button key={c.id} onClick={()=>setCatF(c.id)} style={{...S.chip,...(catF===c.id?S.chipOn:{})}}>{c.emoji} {c.label||"Todas"}</button>
+            ))}</div>
+            {CATEGORIAS.filter(c=>catF==="todas"||c.id===catF).map(cat=>{
+              const ps=catFilt.filter(p=>p.categoria===cat.id).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+              if(!ps.length) return null;
+              return(
+                <div key={cat.id} style={{marginBottom:4}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#888",padding:"8px 2px 3px",borderBottom:"1px solid #ece8e0",marginBottom:2}}>{cat.emoji} {cat.label} <span style={{fontWeight:400,color:"#bbb"}}>({ps.length})</span></div>
+                  {ps.map(p=>{
+                    const ul=histP[p.id]?.at(-1);
+                    return(
+                      <div key={p.id} style={{display:"flex",alignItems:"center",gap:4,borderBottom:"1px solid #f5f2ee"}}>
+                        <button onClick={()=>setMEditProd(p)} style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 4px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+                          <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+                            <span style={S.itemNom}>{p.nombre}</span>
+                            <span style={S.itemMeta}>{getTienda(p.tienda_sugerida).nombre}{ul?` · ${fmt(ul.precio)}`:""}</span>
+                          </div>
+                          <span style={{color:"#ccc",fontSize:16}}>✎</span>
+                        </button>
+                        {histP[p.id]?.length>0&&<button onClick={()=>setMPrecios(p)} style={{background:"none",border:"none",cursor:"pointer",fontSize:17,padding:"8px"}}>📈</button>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            <div style={{marginTop:20}}>
+              <div style={{fontSize:12,fontWeight:800,color:"#bbb",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Tiendas</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {tiendas.map(t=><div key={t.id} style={{background:"#f7f4ef",border:"1.5px solid #ece8e0",borderRadius:20,padding:"5px 13px",fontSize:13,fontWeight:600,color:"#555"}}>{t.nombre}</div>)}
+                <button onClick={()=>setMNuevaTienda(true)} style={{background:"#fff3e0",border:"1.5px dashed #f97316",borderRadius:20,padding:"5px 13px",fontSize:13,fontWeight:600,color:"#f97316",cursor:"pointer"}}>+ Agregar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* HISTORIAL */}
+        {tab==="historial"&&!sub&&(
+          <div style={S.page}>
+            <span style={S.pageTitle}>Historial</span>
+            {completadas.length>1&&(
+              <div style={S.card}>
+                <div style={S.cardTitle}>Gasto por mercado</div>
+                <div style={{marginTop:12}}>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <LineChart data={completadas.slice().reverse().map(l=>({fecha:new Date(l.fecha_completada).toLocaleDateString("es-CO",{day:"2-digit",month:"short"}),total:l.items.filter(i=>i.comprado).reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0)}))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8"/>
+                      <XAxis dataKey="fecha" tick={{fontSize:10}}/>
+                      <YAxis tick={{fontSize:10}} tickFormatter={v=>`$${(v/1000).toFixed(0)}k`}/>
+                      <Tooltip formatter={v=>[fmt(v),"Total"]} labelStyle={{fontSize:12}}/>
+                      <Line type="monotone" dataKey="total" stroke="#f97316" strokeWidth={2} dot={{fill:"#f97316",r:4}}/>
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+            {completadas.length===0?(<div style={S.empty}><p style={{textAlign:"center"}}>Aún no hay mercados completados.</p></div>)
+            :completadas.map(lista=>{
+              const tot=lista.items.filter(i=>i.comprado).reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0);
+              const porT=tiendas.map(t=>({...t,total:lista.items.filter(i=>i.comprado&&i.tienda_real===t.id).reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0)})).filter(t=>t.total>0);
+              return(
+                <div key={lista.id} style={S.card}>
+                  <div style={S.cardRow}><span style={S.cardTitle}>{new Date(lista.fecha_completada).toLocaleDateString("es-CO",{weekday:"long",day:"2-digit",month:"long"})}</span><span style={S.badgeOrange}>{fmt(tot)}</span></div>
+                  {porT.length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#bbb",textTransform:"uppercase",marginBottom:4}}>Por tienda</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {porT.map(t=><div key={t.id} style={{background:"#f7f4ef",borderRadius:10,padding:"6px 10px",display:"flex",flexDirection:"column",gap:2}}><span style={{fontSize:12,fontWeight:600,color:"#555"}}>{t.nombre}</span><span style={{fontSize:13,fontWeight:800,color:"#f97316"}}>{fmt(t.total)}</span></div>)}
+                      </div>
+                    </div>
+                  )}
+                  <button onClick={()=>setSub({tipo:"det",lista})} style={{background:"none",border:"1px solid #ece8e0",borderRadius:10,padding:"7px 13px",fontSize:13,color:"#888",cursor:"pointer",marginTop:4,textAlign:"left"}}>Ver {lista.items.filter(i=>i.comprado).length} productos →</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* DETALLE HISTORIAL */}
+        {tab==="historial"&&sub?.tipo==="det"&&(
+          <div style={S.page}>
+            <div style={S.pageHead}>
+              <button onClick={()=>setSub(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,fontWeight:700,color:"#f97316",padding:0}}>← Volver</button>
+              <span style={S.badgeOrange}>{fmt(sub.lista.items.filter(i=>i.comprado).reduce((a,i)=>a+(i.precio_real||0)*(i.cantidad||1),0))}</span>
+            </div>
+            <div style={S.cardTitle}>{new Date(sub.lista.fecha_completada).toLocaleDateString("es-CO",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}</div>
+            {sub.lista.items.filter(i=>i.comprado).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es")).map(item=>(
+              <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f5f2ee"}}>
+                <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+                  <span style={S.itemNom}>{item.nombre}</span>
+                  <span style={S.itemMeta}>{getTienda(item.tienda_real).nombre}{item.comprado_por?` · 🛒 ${item.comprado_por}`:""}</span>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:14,fontWeight:700,color:"#f97316"}}>{fmt(item.precio_real)}</div>
+                  {item.cantidad>1&&<div style={{fontSize:11,color:"#bbb"}}>x{item.cantidad} = {fmt(item.precio_real*item.cantidad)}</div>}
+                </div>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:18}}>
+              <button onClick={()=>compartirTexto(sub.lista)} style={S.btnGhost}>📋 Texto</button>
+              <button onClick={()=>compartirImagen(sub.lista)} style={S.btnOrange}>🖼️ Imagen</button>
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* MODALES */}
+      {mAgregar&&<ModalAgregar prod={mAgregar} tiendas={tiendas} ultPrecio={histP[mAgregar.id]?.at(-1)?.precio} onOk={agregarItem} onClose={()=>setMAgregar(null)}/>}
+      {mCompra&&<ModalCompra item={mCompra} tiendas={tiendas} onOk={marcar} onClose={()=>setMCompra(null)}/>}
+      {(mEditProd||mNuevoProd)&&<ModalProd prod={mEditProd} tiendas={tiendas} catalogo={mNuevoProd?catalogo:null} onSave={guardarProd} onDel={mEditProd?eliminarProd:null} onClose={()=>{setMEditProd(null);setMNuevoProd(false);}}/>}
+      {mNuevaTienda&&<ModalTienda onSave={agregarTienda} onClose={()=>setMNuevaTienda(false)}/>}
+      {mPrecios&&<ModalPrecios prod={mPrecios} hist={histP[mPrecios.id]||[]} tiendas={tiendas} onClose={()=>setMPrecios(null)}/>}
+      {mSugerida&&<ModalSugerida sugs={sugs} onOk={crearSugerida} onClose={()=>setMSugerida(false)}/>}
+
+      {/* Modal finalizar pendientes */}
+      {mFin&&(
+        <div style={S.overlay} onClick={()=>setMFin(false)}>
+          <div style={S.sheet} onClick={e=>e.stopPropagation()}>
+            <div style={S.handle}/>
+            <div style={S.sheetTitle}>Finalizar mercado</div>
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:36,marginBottom:8}}>🛒</div>
+              <div style={{fontSize:15,color:"#555",lineHeight:1.5}}>Compraste <strong style={{color:"#2d6a4f"}}>{comp.length} productos</strong> por <strong style={{color:"#f97316"}}>{fmt(totalReal)}</strong></div>
+              <div style={{fontSize:13,color:"#aaa",marginTop:6}}>Quedan <strong>{pend.length} sin comprar</strong></div>
+            </div>
+            <div style={{background:"#f7f4ef",borderRadius:12,padding:"10px 14px",marginBottom:16,maxHeight:150,overflowY:"auto"}}>
+              {pend.map(i=><div key={i.id} style={{fontSize:14,color:"#666",padding:"3px 0",borderBottom:"1px solid #ece8e0"}}>{i.nombre}</div>)}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <button onClick={finGuardar} style={S.btnOrange}>📋 Guardar pendientes en nueva lista</button>
+              <button onClick={finLimpio} style={S.btnGhost}>Finalizar sin guardar pendientes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal código de hogar */}
+      {mCodigo&&(
+        <div style={S.overlay} onClick={()=>setMCodigo(false)}>
+          <div style={S.sheet} onClick={e=>e.stopPropagation()}>
+            <div style={S.handle}/>
+            <div style={S.sheetTitle}>Tu hogar</div>
+            <div style={{textAlign:"center",padding:"8px 0 20px"}}>
+              <div style={{fontSize:13,color:"#999",marginBottom:8}}>Código para compartir con tu pareja</div>
+              <div style={{fontSize:34,fontWeight:900,color:"#f97316",letterSpacing:4,background:"#fff3e0",borderRadius:16,padding:"16px 24px",display:"inline-block"}}>{hogar}</div>
+              <div style={{fontSize:13,color:"#aaa",marginTop:12,lineHeight:1.5}}>Tu pareja abre la app, selecciona "Unirme a un hogar" y escribe este código</div>
+              {!FIREBASE_ACTIVO&&<div style={{fontSize:12,color:"#f59e0b",marginTop:12,background:"#fffbeb",borderRadius:10,padding:"10px 12px",lineHeight:1.5}}>⚠️ Configura Firebase para sincronizar entre dispositivos</div>}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <button onClick={()=>setMCodigo(false)} style={S.btnOrange}>Entendido</button>
+              <button onClick={()=>{setHogar(null);setNombre(null);setMCodigo(false);}} style={{...S.btnGhost,color:"#e53e3e",fontSize:13}}>Cerrar sesión</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MODALES ───────────────────────────────────────────────────────────────────
+
+function ModalAgregar({prod,tiendas,ultPrecio,onOk,onClose}) {
+  const [tienda,setTienda]=useState(prod.tienda_sugerida||"sin_tienda");
+  const [cant,setCant]=useState(1);
+  const cat=getCat(prod.categoria);
+  return(<div style={S.overlay} onClick={onClose}><div style={S.sheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.handle}/>
+    <div style={S.sheetTitle}>{prod.nombre}</div>
+    <div style={{fontSize:13,color:"#999",marginBottom:16,textAlign:"center"}}>{cat.emoji} {cat.label}{ultPrecio?` · último: ${fmt(ultPrecio)}`:""}</div>
+    <label style={S.lbl}>Cantidad</label>
+    <div style={S.cantRow}><button onClick={()=>setCant(Math.max(1,cant-1))} style={S.cantBtn}>−</button><span style={S.cantVal}>{cant}</span><button onClick={()=>setCant(cant+1)} style={S.cantBtn}>+</button></div>
+    <label style={S.lbl}>Tienda</label>
+    <div style={S.tiendaOpts}>{tiendas.map(t=><button key={t.id} onClick={()=>setTienda(t.id)} style={{...S.tOpt,...(tienda===t.id?S.tOptOn:{})}}>{t.nombre}</button>)}</div>
+    <div style={S.mBtns}><button onClick={onClose} style={S.btnGhost}>Cancelar</button><button onClick={()=>onOk(prod,tienda,cant)} style={S.btnOrange}>Agregar</button></div>
+  </div></div>);
+}
+
+function ModalCompra({item,tiendas,onOk,onClose}) {
+  const [precio,setPrecio]=useState(item.precio_estimado||"");
+  const [tienda,setTienda]=useState(item.tienda_sugerida||"sin_tienda");
+  const [cant,setCant]=useState(item.cantidad||1);
+  return(<div style={S.overlay} onClick={onClose}><div style={S.sheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.handle}/>
+    <div style={S.sheetTitle}>{item.nombre}</div>
+    <label style={S.lbl}>Precio ($)</label>
+    <input style={S.input} type="number" inputMode="numeric" placeholder="Ej: 4500" value={precio} onChange={e=>setPrecio(e.target.value)}/>
+    <label style={S.lbl}>Cantidad</label>
+    <div style={S.cantRow}><button onClick={()=>setCant(Math.max(1,cant-1))} style={S.cantBtn}>−</button><span style={S.cantVal}>{cant}</span><button onClick={()=>setCant(cant+1)} style={S.cantBtn}>+</button></div>
+    <label style={S.lbl}>Tienda</label>
+    <div style={S.tiendaOpts}>{tiendas.map(t=><button key={t.id} onClick={()=>setTienda(t.id)} style={{...S.tOpt,...(tienda===t.id?S.tOptOn:{})}}>{t.nombre}</button>)}</div>
+    {precio&&<div style={{background:"#fff3e0",borderRadius:10,padding:"9px 13px",fontSize:15,color:"#f97316",marginBottom:13,textAlign:"center"}}>Subtotal: <strong>{fmt(Number(precio)*cant)}</strong></div>}
+    <div style={S.mBtns}><button onClick={onClose} style={S.btnGhost}>Cancelar</button><button onClick={()=>onOk(item,precio,tienda,cant)} style={S.btnOrange}>✓ Comprado</button></div>
+  </div></div>);
+}
+
+function ModalProd({prod,tiendas,catalogo,onSave,onDel,onClose}) {
+  const [nom,setNom]=useState(prod?.nombre||"");
+  const [cat,setCat]=useState(prod?.categoria||"sin_cat");
+  const [tienda,setTienda]=useState(prod?.tienda_sugerida||"sin_tienda");
+  const [sugs,setSugs]=useState([]);
+  const [confDel,setConfDel]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{ref.current?.focus();},[]);
+  const handleNom=v=>{setNom(v);if(catalogo&&v.length>1)setSugs(catalogo.filter(p=>p.nombre.toLowerCase().includes(v.toLowerCase())).slice(0,5));else setSugs([]);};
+  return(<div style={S.overlay} onClick={onClose}><div style={S.sheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.handle}/>
+    <div style={S.sheetTitle}>{prod?"Editar producto":"Nuevo producto"}</div>
+    <label style={S.lbl}>Nombre</label>
+    <div style={{position:"relative"}}>
+      <input ref={ref} style={S.input} placeholder="Ej: Aceite de oliva" value={nom} onChange={e=>handleNom(e.target.value)}/>
+      {sugs.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#fff",border:"1.5px solid #ece8e0",borderRadius:12,zIndex:10,overflow:"hidden",boxShadow:"0 4px 12px rgba(0,0,0,0.1)"}}>
+        {sugs.map(s=><button key={s.id} style={{display:"block",width:"100%",padding:"10px 13px",background:"none",border:"none",borderBottom:"1px solid #f5f2ee",cursor:"pointer",textAlign:"left",fontSize:14,fontFamily:"Nunito,sans-serif",color:"#333"}} onClick={()=>{setNom(s.nombre);setCat(s.categoria);setTienda(s.tienda_sugerida);setSugs([]);}}>{getCat(s.categoria).emoji} {s.nombre}</button>)}
+      </div>}
+    </div>
+    <label style={S.lbl}>Categoría</label>
+    <div style={S.chipScroll}>{CATEGORIAS.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{...S.chip,...(cat===c.id?S.chipOn:{})}}>{c.emoji} {c.label}</button>)}</div>
+    <label style={S.lbl}>Tienda sugerida</label>
+    <div style={S.tiendaOpts}>{tiendas.map(t=><button key={t.id} onClick={()=>setTienda(t.id)} style={{...S.tOpt,...(tienda===t.id?S.tOptOn:{})}}>{t.nombre}</button>)}</div>
+    {prod&&!confDel&&<button onClick={()=>setConfDel(true)} style={{background:"none",border:"none",color:"#e53e3e",fontSize:14,fontWeight:600,cursor:"pointer",padding:"8px 0",marginTop:4,width:"100%",textAlign:"center"}}>Eliminar producto</button>}
+    {confDel&&<div style={{background:"#fff5f5",border:"1px solid #fed7d7",borderRadius:12,padding:"11px 13px",fontSize:14,color:"#c53030",marginTop:4,marginBottom:4}}>
+      <span>¿Eliminar <strong>{prod.nombre}</strong>?</span>
+      <div style={{display:"flex",gap:8,marginTop:8}}><button onClick={()=>setConfDel(false)} style={S.btnGhost}>No</button><button onClick={()=>onDel(prod.id)} style={{...S.btnOrange,background:"#e53e3e"}}>Sí, eliminar</button></div>
+    </div>}
+    <div style={S.mBtns}><button onClick={onClose} style={S.btnGhost}>Cancelar</button><button onClick={()=>nom.trim()&&onSave({...prod,nombre:nom.trim(),categoria:cat,tienda_sugerida:tienda})} style={{...S.btnOrange,opacity:nom.trim()?1:0.45}}>Guardar</button></div>
+  </div></div>);
+}
+
+function ModalTienda({onSave,onClose}) {
+  const [nom,setNom]=useState("");
+  return(<div style={S.overlay} onClick={onClose}><div style={S.sheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.handle}/>
+    <div style={S.sheetTitle}>Nueva tienda</div>
+    <label style={S.lbl}>Nombre</label>
+    <input style={S.input} placeholder="Ej: Carulla" value={nom} autoFocus onChange={e=>setNom(e.target.value)}/>
+    <div style={S.mBtns}><button onClick={onClose} style={S.btnGhost}>Cancelar</button><button onClick={()=>nom.trim()&&onSave(nom)} style={{...S.btnOrange,opacity:nom.trim()?1:0.45}}>Agregar</button></div>
+  </div></div>);
+}
+
+function ModalPrecios({prod,hist,tiendas,onClose}) {
+  const gT=id=>tiendas.find(t=>t.id===id)||{nombre:"Sin tienda"};
+  const ord=[...hist].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+  const data=ord.map(h=>({fecha:new Date(h.fecha).toLocaleDateString("es-CO",{day:"2-digit",month:"short"}),precio:h.precio}));
+  const mn=Math.min(...ord.map(h=>h.precio)); const mx=Math.max(...ord.map(h=>h.precio));
+  const ul=ord.at(-1); const pen=ord.at(-2);
+  const vari=pen?((ul.precio-pen.precio)/pen.precio*100).toFixed(1):null;
+  const cat=getCat(prod.categoria);
+  return(<div style={S.overlay} onClick={onClose}><div style={S.sheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.handle}/>
+    <div style={S.sheetTitle}>{prod.nombre}</div>
+    <div style={{fontSize:13,color:"#999",textAlign:"center",marginBottom:16}}>{cat.emoji} {cat.label}</div>
+    <div style={S.statsRow}>
+      <div style={S.statBox}><span style={{...S.statN,color:"#f97316"}}>{fmt(ul?.precio)}</span><span style={S.statL}>último precio</span></div>
+      <div style={S.statBox}><span style={{...S.statN,color:vari>0?"#e53e3e":vari<0?"#2d6a4f":"#999"}}>{vari?`${vari>0?"+":""}${vari}%`:"—"}</span><span style={S.statL}>vs anterior</span></div>
+      <div style={S.statBox}><span style={S.statN}>{ord.length}</span><span style={S.statL}>registros</span></div>
+    </div>
+    {data.length>1&&<div style={{marginTop:16,marginBottom:8}}>
+      <ResponsiveContainer width="100%" height={140}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8"/>
+          <XAxis dataKey="fecha" tick={{fontSize:10}}/>
+          <YAxis tick={{fontSize:10}} domain={[mn*0.9,mx*1.1]} tickFormatter={v=>`$${(v/1000).toFixed(0)}k`}/>
+          <Tooltip formatter={v=>[fmt(v),"Precio"]}/>
+          <Line type="monotone" dataKey="precio" stroke="#f97316" strokeWidth={2} dot={{fill:"#f97316",r:4}}/>
+        </LineChart>
+      </ResponsiveContainer>
+    </div>}
+    <div style={{fontSize:12,fontWeight:800,color:"#bbb",textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Registros</div>
+    {[...ord].reverse().map((h,i)=>(
+      <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f5f2ee"}}>
+        <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+          <span style={S.itemNom}>{fmt(h.precio)}</span>
+          <span style={S.itemMeta}>{gT(h.tienda).nombre} · {new Date(h.fecha).toLocaleDateString("es-CO",{day:"2-digit",month:"long",year:"numeric"})}</span>
+        </div>
+        {i===0&&vari&&<span style={{fontSize:12,fontWeight:700,color:vari>0?"#e53e3e":"#2d6a4f"}}>{vari>0?`↑ +${vari}%`:`↓ ${vari}%`}</span>}
+      </div>
+    ))}
+    <button onClick={onClose} style={{...S.btnOrange,marginTop:12}}>Cerrar</button>
+  </div></div>);
+}
+
+function ModalSugerida({sugs,onOk,onClose}) {
+  const urg=sugs.filter(s=>s.urg==="urgente"); const pron=sugs.filter(s=>s.urg==="pronto");
+  const tot=urg.reduce((a,s)=>a+(s.precio||0),0)+pron.reduce((a,s)=>a+(s.precio||0),0);
+  return(<div style={S.overlay} onClick={onClose}><div style={S.sheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.handle}/>
+    <div style={S.sheetTitle}>Lista sugerida 🤖</div>
+    <div style={{fontSize:13,color:"#999",textAlign:"center",marginBottom:12}}>Basada en tu historial · Est. {fmt(tot)}</div>
+    {urg.length>0&&<><div style={{fontSize:12,fontWeight:800,color:"#e53e3e",textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>🔴 Urgente ({urg.length})</div>{urg.map(s=><div key={s.prod.id} style={{display:"flex",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #f5f2ee"}}><div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}><span style={S.itemNom}>{s.prod.nombre}</span><span style={S.itemMeta}>hace {s.dias}d · cada ~{s.prom||30}d{s.precio?` · ${fmt(s.precio)}`:""}</span></div></div>)}</>}
+    {pron.length>0&&<><div style={{fontSize:12,fontWeight:800,color:"#e07b00",textTransform:"uppercase",letterSpacing:0.5,marginTop:12,marginBottom:4}}>🟡 Pronto ({pron.length})</div>{pron.map(s=><div key={s.prod.id} style={{display:"flex",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #f5f2ee"}}><div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}><span style={S.itemNom}>{s.prod.nombre}</span><span style={S.itemMeta}>hace {s.dias}d · cada ~{s.prom||30}d{s.precio?` · ${fmt(s.precio)}`:""}</span></div></div>)}</>}
+    <div style={{fontSize:12,color:"#bbb",marginTop:12,marginBottom:4,textAlign:"center"}}>Podrás editar la lista antes de ir de mercado</div>
+    <div style={S.mBtns}><button onClick={onClose} style={S.btnGhost}>Cancelar</button><button onClick={onOk} style={S.btnOrange}>Usar esta lista ✓</button></div>
+  </div></div>);
+}
+
+// ── ESTILOS ───────────────────────────────────────────────────────────────────
+
+const S = {
+  app:{fontFamily:"'Nunito',sans-serif",background:"#f7f4ef",minHeight:"100vh",maxWidth:480,margin:"0 auto"},
+  toast:{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",color:"#fff",padding:"10px 22px",borderRadius:24,fontSize:14,fontWeight:700,zIndex:9999,boxShadow:"0 4px 16px rgba(0,0,0,0.18)",whiteSpace:"nowrap"},
+  header:{background:"#fff",borderBottom:"1px solid #ece8e0",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 6px rgba(0,0,0,0.06)"},
+  headerTop:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px 6px"},
+  totalChip:{background:"#fff3e0",color:"#f97316",padding:"4px 12px",borderRadius:20,fontSize:13,fontWeight:800},
+  nav:{display:"flex",justifyContent:"space-around",padding:"2px 0 8px"},
+  navBtn:{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"none",border:"none",cursor:"pointer",padding:"4px 8px",borderRadius:10,color:"#bbb"},
+  navOn:{color:"#f97316",background:"#fff3e0"},
+  page:{display:"flex",flexDirection:"column",gap:10},
+  pageHead:{display:"flex",justifyContent:"space-between",alignItems:"center"},
+  pageTitle:{fontSize:20,fontWeight:900,color:"#1a1a1a"},
+  card:{background:"#fff",borderRadius:14,padding:"13px 14px",boxShadow:"0 1px 8px rgba(0,0,0,0.06)"},
+  cardRow:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8},
+  cardTitle:{fontSize:14,fontWeight:700,color:"#1a1a1a"},
+  badge:{background:"#f0fdf4",color:"#2d6a4f",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700},
+  badgeOrange:{background:"#fff3e0",color:"#f97316",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700},
+  statsRow:{display:"flex",gap:6},
+  statBox:{flex:1,background:"#f7f4ef",borderRadius:12,padding:"8px 4px",display:"flex",flexDirection:"column",alignItems:"center"},
+  statN:{fontSize:16,fontWeight:800,color:"#1a1a1a"},
+  statL:{fontSize:11,color:"#aaa",marginTop:1},
+  btnRow:{display:"flex",gap:8,marginTop:10},
+  btnOrange:{background:"#f97316",color:"#fff",border:"none",borderRadius:12,padding:"12px 16px",fontSize:15,fontWeight:700,cursor:"pointer",flex:1},
+  btnGhost:{background:"#f0ede8",color:"#555",border:"none",borderRadius:12,padding:"12px 16px",fontSize:15,fontWeight:600,cursor:"pointer",flex:1},
+  btnCrear:{background:"#fff",border:"2px dashed #f97316",borderRadius:16,padding:"20px",display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:"100%",cursor:"pointer",color:"#f97316"},
+  chipScroll:{display:"flex",gap:6,overflowX:"auto",paddingBottom:2,scrollbarWidth:"none"},
+  chip:{background:"#fff",border:"1.5px solid #ece8e0",borderRadius:20,padding:"6px 11px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",color:"#666"},
+  chipOn:{background:"#fff3e0",border:"1.5px solid #f97316",color:"#f97316"},
+  prodList:{display:"flex",flexDirection:"column",background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,0.05)"},
+  prodRow:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 13px",background:"none",border:"none",borderBottom:"1px solid #f5f2ee",cursor:"pointer",textAlign:"left",width:"100%"},
+  prodRowOn:{background:"#f0fdf4"},
+  prodNom:{fontSize:15,color:"#1a1a1a",fontWeight:500},
+  prodPrecio:{fontSize:12,color:"#f97316",fontWeight:700},
+  checkMark:{fontSize:14,color:"#2d6a4f",fontWeight:800},
+  addMark:{fontSize:20,color:"#ccc",fontWeight:300},
+  itemRow:{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:12,padding:"10px 12px",marginBottom:4,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"},
+  itemNom:{fontSize:15,fontWeight:600,color:"#1a1a1a"},
+  itemMeta:{fontSize:12,color:"#aaa"},
+  empty:{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 20px",color:"#aaa",fontSize:15,textAlign:"center"},
+  overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.38)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"},
+  sheet:{background:"#fff",borderRadius:"22px 22px 0 0",padding:"14px 18px 38px",width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto",boxShadow:"0 -6px 28px rgba(0,0,0,0.12)"},
+  handle:{width:36,height:4,background:"#e0ddd8",borderRadius:2,margin:"0 auto 14px"},
+  sheetTitle:{fontSize:19,fontWeight:800,color:"#1a1a1a",textAlign:"center",marginBottom:14},
+  lbl:{fontSize:13,fontWeight:700,color:"#777",display:"block",marginBottom:5},
+  input:{width:"100%",border:"1.5px solid #ece8e0",borderRadius:12,padding:"11px 13px",fontSize:16,fontFamily:"'Nunito',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:13,background:"#f7f4ef"},
+  cantRow:{display:"flex",alignItems:"center",gap:18,marginBottom:13},
+  cantBtn:{width:42,height:42,borderRadius:"50%",background:"#f0ede8",border:"none",fontSize:22,cursor:"pointer",fontWeight:700,color:"#555",display:"flex",alignItems:"center",justifyContent:"center"},
+  cantVal:{fontSize:26,fontWeight:800,color:"#1a1a1a",minWidth:36,textAlign:"center"},
+  tiendaOpts:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:13},
+  tOpt:{background:"#f7f4ef",border:"1.5px solid #ece8e0",borderRadius:20,padding:"7px 13px",fontSize:13,fontWeight:600,cursor:"pointer",color:"#555"},
+  tOptOn:{background:"#fff3e0",border:"1.5px solid #f97316",color:"#f97316"},
+  mBtns:{display:"flex",gap:8,marginTop:6},
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+<script>
+  // Registro del service worker para soporte offline / instalación
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>
