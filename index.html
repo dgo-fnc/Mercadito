@@ -410,6 +410,7 @@ function App() {
   const [user,setUser] = useState(null);
   useEffect(()=>{
     if(!FIREBASE_ACTIVO||typeof firebase==="undefined"||!firebase.auth) return;
+    getDB(); // asegura initializeApp antes de usar auth
     const auth=firebase.auth();
     auth.getRedirectResult().catch(()=>{});
     const unsub=auth.onAuthStateChanged(u=>setUser(u||null));
@@ -425,6 +426,7 @@ function App() {
   },[user,hogar]);
   const entrarGoogle = async () => {
     if(typeof firebase==="undefined"||!firebase.auth){ toast2("Firebase no está listo","warn"); return; }
+    getDB(); // asegura initializeApp antes de usar auth
     const provider=new firebase.auth.GoogleAuthProvider();
     try{ await firebase.auth().signInWithPopup(provider); toast2("Cuenta vinculada ✓"); }
     catch(e){ try{ await firebase.auth().signInWithRedirect(provider); }catch(_){ toast2("No se pudo iniciar sesión","warn"); } }
